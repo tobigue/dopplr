@@ -257,15 +257,25 @@ class SolrClient(object):
         https://wiki.apache.org/solr/RealTimeGet
         """
         log.debug('realtime get with ids: %s' % ids)
-        params = [('ids', ','.join(map(unicode, ids)))]
+        params = [('wt', 'json'), ('ids', ','.join(map(str, ids)))]
         if fields:
             params.append(('fl', ','.join(fields)))
         qs = urllib.urlencode(params)
         final_url = '?'.join([self._get_url, qs])
-        log.debug('Final get URL: %s' % final_url)
+
+        # use POST if the final url is very long
+        final_url, use_post = (self._get_url, True) if len(final_url) > 2000 \
+                                                    else (final_url, False)
+        log.debug('Final URL: %s' % final_url)
+
         qb = QueryBuilder(response_mapper=(response_mapper or (lambda x: x)))
 
-        self._get(final_url, callback=handle_search_response(qb, callback))
+        if use_post:
+            self._post(final_url, qs, headers=qb.headers,
+                callback=handle_search_response(qb, callback))
+        else:
+            self._get(final_url, headers=qb.headers,
+                callback=handle_search_response(qb, callback))
 
     def index_document(self, doc, callback=None, commit=False,
                        commitWithin=None, softCommit=None, overwrite=None,
